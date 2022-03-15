@@ -3,22 +3,26 @@ using AurecasLib.Utils;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
+using UnityEngine.ResourceManagement.ResourceLocations;
 using UnityEngine.UI;
 
 namespace AurecasLib.Popup {
+
     public class PopupManager : MonoBehaviour {
         public static PopupManager Instance;
         [HideInInspector]
         public PopupWindow LoadedPopup;
         public BlurRenderer.ShaderParams blurParams;
-        public string sortingLayer = "UI";
 
         List<PopupWindow> loadedPopups;
         Dictionary<int, GameObject> createdCanvases;
         GameObject canvasPreset;
         bool initialized = false;
+
+        Dictionary<string, IResourceLocation> resourceLocationMap;
 
         private void Awake() {
 
@@ -50,12 +54,12 @@ namespace AurecasLib.Popup {
             return preto;
         }
 
-        public IEnumerator OpenPopupRoutine(AssetReference assetReference, int layerOrder) {
-            while (!initialized) yield return null;
+        public IEnumerator OpenPopupRoutine(string assetId, int layerOrder) {
+
+            while (!initialized) yield return new WaitForEndOfFrame();
             //Abre uma tela preta só pra nao ficar sem resposta
             BlurRenderer blurRenderer = BlurRenderer.Create();
             Material mat = blurRenderer.GetBlur(blurParams);
-
 
             GameObject canvas;
             if (createdCanvases.ContainsKey(layerOrder)) {
@@ -68,17 +72,58 @@ namespace AurecasLib.Popup {
                 cv.sortingOrder = layerOrder;
                 cv.renderMode = RenderMode.ScreenSpaceCamera;
                 cv.worldCamera = Camera.main;
-                cv.sortingLayerName = sortingLayer;
                 createdCanvases.Add(layerOrder, canvas);
             }
 
             GameObject preto = GenerateBlackScreen(canvas);
-            YieldableTask<GameObject> yt = new YieldableTask<GameObject>(Addressables.InstantiateAsync(assetReference).Task);
-            yield return yt;
 
+            Task<GameObject> t = Addressables.InstantiateAsync(resourceLocationMap[assetId]).Task;
 
-            yt.GetResult().transform.SetParent(canvas.transform, false);
-            PopupWindow popup = yt.GetResult().GetComponent<PopupWindow>();
+            while (!t.IsCompleted) {
+                yield return null;
+            }
+
+            t.Result.transform.SetParent(canvas.transform, false);
+            PopupWindow popup = t.Result.GetComponent<PopupWindow>();
+            popup.SetBlurRenderer(blurRenderer, mat);
+            popup.OpenPopup();
+            LoadedPopup = popup;
+            loadedPopups.Add(popup);
+
+            Destroy(preto);
+
+        }
+
+        public IEnumerator OpenPopupRoutine(AssetReference assetReference, int layerOrder) {
+            while (!initialized) yield return new WaitForEndOfFrame();
+            //Abre uma tela preta só pra nao ficar sem resposta
+            BlurRenderer blurRenderer = BlurRenderer.Create();
+            Material mat = blurRenderer.GetBlur(blurParams);
+
+            GameObject canvas;
+            if (createdCanvases.ContainsKey(layerOrder)) {
+                canvas = createdCanvases[layerOrder];
+            }
+            else {
+                canvas = Instantiate(canvasPreset, transform);
+                canvas.SetActive(true);
+                Canvas cv = canvas.GetComponent<Canvas>();
+                cv.sortingOrder = layerOrder;
+                cv.renderMode = RenderMode.ScreenSpaceCamera;
+                cv.worldCamera = Camera.main;
+                createdCanvases.Add(layerOrder, canvas);
+            }
+
+            GameObject preto = GenerateBlackScreen(canvas);
+
+            Task<GameObject> t = Addressables.InstantiateAsync(assetReference).Task;
+
+            while (!t.IsCompleted) {
+                yield return null;
+            }
+
+            t.Result.transform.SetParent(canvas.transform, false);
+            PopupWindow popup = t.Result.GetComponent<PopupWindow>();
             popup.SetBlurRenderer(blurRenderer, mat);
             popup.OpenPopup();
             LoadedPopup = popup;
@@ -88,8 +133,13 @@ namespace AurecasLib.Popup {
         }
 
         private IEnumerator Initialize() {
-            YieldableTask task = new YieldableTask(Addressables.LoadResourceLocationsAsync("popups").Task);
+            YieldableTask<IList<IResourceLocation>> task = new YieldableTask<IList<IResourceLocation>>(Addressables.LoadResourceLocationsAsync("popups").Task);
             yield return task;
+            resourceLocationMap = new Dictionary<string, IResourceLocation>();
+            foreach (IResourceLocation r in task.GetResult()) {
+                resourceLocationMap.Add(r.PrimaryKey, r);
+                resourceLocationMap.Add(r.ToString(), r);
+            }
             initialized = true;
         }
 
@@ -117,9 +167,16 @@ namespace AurecasLib.Popup {
         public void OpenPopup(AssetReference assetReference, int layerOrder, Action<PopupWindow> callback) {
             StartCoroutine(_OpenPopup(assetReference, layerOrder, callback));
         }
-
+        public void OpenPopup(string assetKey, int layerOrder, Action<PopupWindow> callback) {
+            StartCoroutine(_OpenPopup(assetKey, layerOrder, callback));
+        }
         private IEnumerator _OpenPopup(AssetReference assetReference, int layerOrder, Action<PopupWindow> callback) {
             yield return OpenPopupRoutine(assetReference, layerOrder);
+            callback?.Invoke(LoadedPopup);
+        }
+
+        private IEnumerator _OpenPopup(string assetKey, int layerOrder, Action<PopupWindow> callback) {
+            yield return OpenPopupRoutine(assetKey, layerOrder);
             callback?.Invoke(LoadedPopup);
         }
     }
