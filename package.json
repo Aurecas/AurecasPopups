@@ -8,6 +8,7 @@
     "description": "Módulo de Popups da Aurecas",
     "samples": [],
 	"dependencies": {
-		"com.aurecas.aurecaslib": "https://github.com/Aurecas/AurecasLib.git"
+		"com.aurecas.aurecaslib": "https://github.com/Aurecas/AurecasLib.git",
+		"com.unity.addressables": "1.16.19"
 	}
 }
