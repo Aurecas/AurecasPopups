@@ -137,8 +137,13 @@ namespace AurecasLib.Popup {
             yield return task;
             resourceLocationMap = new Dictionary<string, IResourceLocation>();
             foreach (IResourceLocation r in task.GetResult()) {
-                resourceLocationMap.Add(r.PrimaryKey, r);
-                resourceLocationMap.Add(r.ToString(), r);
+                if (resourceLocationMap.ContainsKey(r.PrimaryKey))
+                    resourceLocationMap[r.PrimaryKey] = r;
+                else resourceLocationMap.Add(r.PrimaryKey, r);
+
+                if (resourceLocationMap.ContainsKey(r.ToString()))
+                    resourceLocationMap[r.ToString()] = r;
+                else resourceLocationMap.Add(r.ToString(), r);
             }
             initialized = true;
         }
