@@ -137,13 +137,14 @@ namespace AurecasLib.Popup {
             yield return task;
             resourceLocationMap = new Dictionary<string, IResourceLocation>();
             foreach (IResourceLocation r in task.GetResult()) {
-                if (resourceLocationMap.ContainsKey(r.PrimaryKey))
-                    resourceLocationMap[r.PrimaryKey] = r;
-                else resourceLocationMap.Add(r.PrimaryKey, r);
+                if (!resourceLocationMap.ContainsKey(r.PrimaryKey)) {
+                    resourceLocationMap.Add(r.PrimaryKey, r);
+                    Debug.Log("Loaded Addressable " + r.PrimaryKey);
+                }
+                else Debug.Log("Could not load Addressable " + r.PrimaryKey + " as it was already loaded");
 
-                if (resourceLocationMap.ContainsKey(r.ToString()))
-                    resourceLocationMap[r.ToString()] = r;
-                else resourceLocationMap.Add(r.ToString(), r);
+                if (!resourceLocationMap.ContainsKey(r.ToString()))
+                    resourceLocationMap.Add(r.ToString(), r);
             }
             initialized = true;
         }
